@@ -12,7 +12,7 @@ contract EthEnuguScript is Script {
     function run() public {
         vm.startBroadcast();
 
-        ethEnugu = new EthEnugu("POAP NFT", "POAP", "https://example.com/metadata/");
+        ethEnugu = new EthEnugu("POAP NFT", "POAP");
 
         vm.stopBroadcast();
     }

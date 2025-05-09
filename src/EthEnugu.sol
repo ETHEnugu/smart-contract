@@ -1,54 +1,151 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract EthEnugu is ERC721URIStorage, Ownable {
-    /// @notice Whitelist mapping for authorized minters
-    mapping(address => bool) public allowedMinters;
+contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
+    using Counters for Counters.Counter;
+    using Strings for uint256;
 
-    /// @notice Base URI for all token metadata
-    string private baseTokenURI;
+    enum Category { Residency, InVenue, Conference }
 
-    /// @notice Emitted when an address is added or removed from allowedMinters
+    // Whitelisted minters
+    mapping(address => bool) public allowedResidencyMinters;
+    mapping(address => bool) public allowedInVenueMinters;
+    mapping(address => bool) public allowedConferenceMinters;
+
+    // Prevent double mint per address per category
+    mapping(address => bool) public hasMintedResidency;
+    mapping(address => bool) public hasMintedInVenue;
+    mapping(address => bool) public hasMintedConference;
+
+    // Base URIs per category
+    string public residencyBaseTokenURI;
+    string public inVenueBaseTokenURI;
+    string public conferenceBaseTokenURI;
+
+    // Token ID counters
+    Counters.Counter private _residencyCounter;
+    Counters.Counter private _inVenueCounter;
+    Counters.Counter private _conferenceCounter;
+
+    // Category mapping for each token
+    mapping(uint256 => Category) private _tokenCategory;
+
+    // Events
     event AllowedMinterUpdated(address indexed minter, bool allowed);
+    event BaseTokenURIUpdated(Category category, string newBaseURI);
+    event ResidencyMinted(address indexed to, uint256 indexed tokenId);
+    event InVenueMinted(address indexed to, uint256 indexed tokenId);
+    event ConferenceMinted(address indexed to, uint256 indexed tokenId);
 
-    /// @notice Emitted when the baseTokenURI is updated
-    event BaseTokenURIUpdated(string newBaseURI);
-
-    modifier onlyAllowed() {
-        require(allowedMinters[msg.sender], "POAPNFT: Not an allowed minter");
+    // Modifiers
+    modifier onlyAllowedResidency() {
+        require(allowedResidencyMinters[msg.sender], "Not allowed");
+        _;
+    }
+    modifier onlyAllowedInVenue() {
+        require(allowedInVenueMinters[msg.sender], "Not allowed");
+        _;
+    }
+    modifier onlyAllowedConference() {
+        require(allowedConferenceMinters[msg.sender], "Not allowed");
         _;
     }
 
-    constructor(string memory _name, string memory _symbol, string memory _initialBaseURI) 
-        ERC721(_name, _symbol) 
-    {
-        baseTokenURI = _initialBaseURI;
-        allowedMinters[msg.sender] = true;
+    constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
+        // Set initial base URIs
+        residencyBaseTokenURI   = "https://residency.example/api/";
+        inVenueBaseTokenURI     = "https://invenue.example/api/";
+        conferenceBaseTokenURI  = "https://conference.example/api/";
+
+        // Grant owner all minting roles
+        allowedResidencyMinters[msg.sender]   = true;
+        allowedInVenueMinters[msg.sender]     = true;
+        allowedConferenceMinters[msg.sender]  = true;
     }
 
-    /// @notice Owner can add or remove allowed minters
-    function updateAllowedMinter(address _minter, bool _allowed) external onlyOwner {
-        allowedMinters[_minter] = _allowed;
-        emit AllowedMinterUpdated(_minter, _allowed);
+    // Owner functions to manage base URIs
+    function setResidencyBaseTokenURI(string memory uri) external onlyOwner {
+        residencyBaseTokenURI = uri;
+        emit BaseTokenURIUpdated(Category.Residency, uri);
+    }
+    function setInVenueBaseTokenURI(string memory uri) external onlyOwner {
+        inVenueBaseTokenURI = uri;
+        emit BaseTokenURIUpdated(Category.InVenue, uri);
+    }
+    function setConferenceBaseTokenURI(string memory uri) external onlyOwner {
+        conferenceBaseTokenURI = uri;
+        emit BaseTokenURIUpdated(Category.Conference, uri);
     }
 
-    /// @notice Owner can update the base URI for token metadata
-    function setBaseTokenURI(string memory _newBaseURI) external onlyOwner {
-        baseTokenURI = _newBaseURI;
-        emit BaseTokenURIUpdated(_newBaseURI);
+    // Owner functions to manage minters
+    function updateAllowedResidencyMinter(address minter, bool ok) external onlyOwner {
+        allowedResidencyMinters[minter] = ok;
+        emit AllowedMinterUpdated(minter, ok);
+    }
+    function updateAllowedInVenueMinter(address minter, bool ok) external onlyOwner {
+        allowedInVenueMinters[minter] = ok;
+        emit AllowedMinterUpdated(minter, ok);
+    }
+    function updateAllowedConferenceMinter(address minter, bool ok) external onlyOwner {
+        allowedConferenceMinters[minter] = ok;
+        emit AllowedMinterUpdated(minter, ok);
     }
 
-    /// @notice Mints a new POAP NFT to `to` with `tokenId`
-    function mintPOAP(address to, uint256 tokenId) external onlyAllowed {
+    // Minting functions
+    function mintBuilderResidency(address to) external onlyAllowedResidency nonReentrant {
+        require(!hasMintedResidency[to], "Residency: already minted");
+        hasMintedResidency[to] = true;
+
+        _residencyCounter.increment();
+        uint256 tokenId = _residencyCounter.current();
+        _tokenCategory[tokenId] = Category.Residency;
         _safeMint(to, tokenId);
-        _setTokenURI(tokenId, Strings.toString(tokenId));
+
+        emit ResidencyMinted(to, tokenId);
     }
 
-    /// @notice Override to return the baseTokenURI
-    function _baseURI() internal view override returns (string memory) {
-        return baseTokenURI;
+    function mintInVenueRegistration(address to) external onlyAllowedInVenue nonReentrant {
+        require(!hasMintedInVenue[to], "InVenue: already minted");
+        hasMintedInVenue[to] = true;
+
+        _inVenueCounter.increment();
+        uint256 tokenId = _inVenueCounter.current();
+        _tokenCategory[tokenId] = Category.InVenue;
+        _safeMint(to, tokenId);
+
+        emit InVenueMinted(to, tokenId);
+    }
+
+    function mintConferenceAttendance(address to) external onlyAllowedConference nonReentrant {
+        require(!hasMintedConference[to], "Conference: already minted");
+        hasMintedConference[to] = true;
+
+        _conferenceCounter.increment();
+        uint256 tokenId = _conferenceCounter.current();
+        _tokenCategory[tokenId] = Category.Conference;
+        _safeMint(to, tokenId);
+
+        emit ConferenceMinted(to, tokenId);
+    }
+
+    // Override tokenURI to build URIs on the fly
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        Category cat = _tokenCategory[tokenId];
+        string memory base;
+        if (cat == Category.Residency) {
+            base = residencyBaseTokenURI;
+        } else if (cat == Category.InVenue) {
+            base = inVenueBaseTokenURI;
+        } else {
+            base = conferenceBaseTokenURI;
+        }
+        return string(abi.encodePacked(base, tokenId.toString(), ".json"));
     }
 }
