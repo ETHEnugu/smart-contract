@@ -7,136 +7,172 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+/// @title ETH Enugu Event Passes
+/// @author Therock Ani
+/// @notice ERC721-based NFT contract for managing event passes for ETH Enugu 2025
+/// @dev Uses OpenZeppelin libraries for security and token standard compliance
 contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
     using Strings for uint256;
 
+    /// @notice NFT categories corresponding to pass types
     enum Category { Residency, InVenue, Conference }
 
-    // Whitelisted minters
+    /// @notice Mapping of addresses allowed to mint Residency passes
     mapping(address => bool) public allowedResidencyMinters;
+
+    /// @notice Mapping of addresses allowed to mint InVenue passes
     mapping(address => bool) public allowedInVenueMinters;
+
+    /// @notice Mapping of addresses allowed to mint Conference passes
     mapping(address => bool) public allowedConferenceMinters;
 
-    // Prevent double mint per address per category
+    /// @notice Tracks if an address has already minted a Residency pass
     mapping(address => bool) public hasMintedResidency;
+
+    /// @notice Tracks if an address has already minted an InVenue pass
     mapping(address => bool) public hasMintedInVenue;
+
+    /// @notice Tracks if an address has already minted a Conference pass
     mapping(address => bool) public hasMintedConference;
 
-    // Base URIs per category
+    /// @notice Base URI for Residency token metadata
     string public residencyBaseTokenURI;
+
+    /// @notice Base URI for InVenue token metadata
     string public inVenueBaseTokenURI;
+
+    /// @notice Base URI for Conference token metadata
     string public conferenceBaseTokenURI;
 
-    // Token ID counters
+    /// @notice Counter for Residency token IDs
     Counters.Counter private _residencyCounter;
+
+    /// @notice Counter for InVenue token IDs
     Counters.Counter private _inVenueCounter;
+
+    /// @notice Counter for Conference token IDs
     Counters.Counter private _conferenceCounter;
 
-    // Category mapping for each token
+    /// @notice Maps token IDs to their Category
     mapping(uint256 => Category) private _tokenCategory;
 
-    // Events
+    /// @notice Emitted when an allowed minter is added or removed
+    /// @param minter Address of the minter
+    /// @param allowed True if allowed, false if revoked
     event AllowedMinterUpdated(address indexed minter, bool allowed);
+
+    /// @notice Emitted when a category base URI is updated
+    /// @param category The Category updated
+    /// @param newBaseURI New base URI string
     event BaseTokenURIUpdated(Category category, string newBaseURI);
+
+    /// @notice Emitted when a Residency pass is minted
     event ResidencyMinted(address indexed to, uint256 indexed tokenId);
+
+    /// @notice Emitted when an InVenue pass is minted
     event InVenueMinted(address indexed to, uint256 indexed tokenId);
+
+    /// @notice Emitted when a Conference pass is minted
     event ConferenceMinted(address indexed to, uint256 indexed tokenId);
 
-    // Modifiers
+    /// @notice Restricts function to allowed Residency minters
     modifier onlyAllowedResidency() {
-        require(allowedResidencyMinters[msg.sender], "Not allowed");
+        require(allowedResidencyMinters[msg.sender], "EthEnugu: caller not allowed");
         _;
     }
+
+    /// @notice Restricts function to allowed InVenue minters
     modifier onlyAllowedInVenue() {
-        require(allowedInVenueMinters[msg.sender], "Not allowed");
+        require(allowedInVenueMinters[msg.sender], "EthEnugu: caller not allowed");
         _;
     }
+
+    /// @notice Restricts function to allowed Conference minters
     modifier onlyAllowedConference() {
-        require(allowedConferenceMinters[msg.sender], "Not allowed");
+        require(allowedConferenceMinters[msg.sender], "EthEnugu: caller not allowed");
         _;
     }
 
+    /// @notice Constructor sets token name, symbol, default URIs, and grants owner all mint roles
+    /// @param name_ ERC721 token name
+    /// @param symbol_ ERC721 token symbol
     constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
-        // Set initial base URIs
-        residencyBaseTokenURI   = "https://residency.example/api/";
-        inVenueBaseTokenURI     = "https://invenue.example/api/";
-        conferenceBaseTokenURI  = "https://conference.example/api/";
+        residencyBaseTokenURI  = "https://residency.example/api/";
+        inVenueBaseTokenURI    = "https://invenue.example/api/";
+        conferenceBaseTokenURI = "https://conference.example/api/";
 
-        // Grant owner all minting roles
-        allowedResidencyMinters[msg.sender]   = true;
-        allowedInVenueMinters[msg.sender]     = true;
-        allowedConferenceMinters[msg.sender]  = true;
-    }
-
-    // Owner functions to manage base URIs
-    function setResidencyBaseTokenURI(string memory uri) external onlyOwner {
-        residencyBaseTokenURI = uri;
-        emit BaseTokenURIUpdated(Category.Residency, uri);
-    }
-    function setInVenueBaseTokenURI(string memory uri) external onlyOwner {
-        inVenueBaseTokenURI = uri;
-        emit BaseTokenURIUpdated(Category.InVenue, uri);
-    }
-    function setConferenceBaseTokenURI(string memory uri) external onlyOwner {
-        conferenceBaseTokenURI = uri;
-        emit BaseTokenURIUpdated(Category.Conference, uri);
+        // Owner begins with all roles
+        allowedResidencyMinters[_msgSender()]   = true;
+        allowedInVenueMinters[_msgSender()]     = true;
+        allowedConferenceMinters[_msgSender()]  = true;
     }
 
-    // Owner functions to manage minters
+    /// @notice Grant or revoke Residency minter role
+    /// @param minter Address to update
+    /// @param ok True to grant, false to revoke
     function updateAllowedResidencyMinter(address minter, bool ok) external onlyOwner {
         allowedResidencyMinters[minter] = ok;
         emit AllowedMinterUpdated(minter, ok);
     }
+
+    /// @notice Grant or revoke InVenue minter role
     function updateAllowedInVenueMinter(address minter, bool ok) external onlyOwner {
         allowedInVenueMinters[minter] = ok;
         emit AllowedMinterUpdated(minter, ok);
     }
+
+    /// @notice Grant or revoke Conference minter role
     function updateAllowedConferenceMinter(address minter, bool ok) external onlyOwner {
         allowedConferenceMinters[minter] = ok;
         emit AllowedMinterUpdated(minter, ok);
     }
 
-    // Minting functions
-    function mintBuilderResidency(address to) external onlyAllowedResidency nonReentrant {
-        require(!hasMintedResidency[to], "Residency: already minted");
-        hasMintedResidency[to] = true;
+    /// @notice Mints a Residency pass to caller
+    /// @dev Prevents double-mint and protected against reentrancy
+    function mintBuilderResidency() external onlyAllowedResidency nonReentrant {
+        require(!hasMintedResidency[msg.sender], "Residency: already minted");
+        hasMintedResidency[msg.sender] = true;
 
         _residencyCounter.increment();
         uint256 tokenId = _residencyCounter.current();
         _tokenCategory[tokenId] = Category.Residency;
-        _safeMint(to, tokenId);
+        _safeMint(msg.sender, tokenId);
 
-        emit ResidencyMinted(to, tokenId);
+        emit ResidencyMinted(msg.sender, tokenId);
     }
 
-    function mintInVenueRegistration(address to) external onlyAllowedInVenue nonReentrant {
-        require(!hasMintedInVenue[to], "InVenue: already minted");
-        hasMintedInVenue[to] = true;
+    /// @notice Mints an InVenue pass to caller
+    function mintInVenueRegistration() external onlyAllowedInVenue nonReentrant {
+        require(!hasMintedInVenue[msg.sender], "InVenue: already minted");
+        hasMintedInVenue[msg.sender] = true;
 
         _inVenueCounter.increment();
         uint256 tokenId = _inVenueCounter.current();
         _tokenCategory[tokenId] = Category.InVenue;
-        _safeMint(to, tokenId);
+        _safeMint(msg.sender, tokenId);
 
-        emit InVenueMinted(to, tokenId);
+        emit InVenueMinted(msg.sender, tokenId);
     }
 
-    function mintConferenceAttendance(address to) external onlyAllowedConference nonReentrant {
-        require(!hasMintedConference[to], "Conference: already minted");
-        hasMintedConference[to] = true;
+    /// @notice Mints a Conference pass to caller
+    function mintConferenceAttendance() external onlyAllowedConference nonReentrant {
+        require(!hasMintedConference[msg.sender], "Conference: already minted");
+        hasMintedConference[msg.sender] = true;
 
         _conferenceCounter.increment();
         uint256 tokenId = _conferenceCounter.current();
         _tokenCategory[tokenId] = Category.Conference;
-        _safeMint(to, tokenId);
+        _safeMint(msg.sender, tokenId);
 
-        emit ConferenceMinted(to, tokenId);
+        emit ConferenceMinted(msg.sender, tokenId);
     }
 
-    // Override tokenURI to build URIs on the fly
+    /// @notice Returns the metadata URI for a given token ID
+    /// @param tokenId NFT identifier
+    /// @return URI string pointing to JSON metadata
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        require(_exists(tokenId), "ERC721: URI query for nonexistent token");
         Category cat = _tokenCategory[tokenId];
         string memory base;
         if (cat == Category.Residency) {
