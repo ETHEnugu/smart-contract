@@ -10,10 +10,12 @@ contract EthEnuguScript is Script {
     function setUp() public {}
 
     function run() public {
-        vm.startBroadcast();
-
-        ethEnugu = new EthEnugu("POAP NFT", "POAP");
-
+       uint deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+        vm.startBroadcast(deployerPrivateKey);
+        ethEnugu = new EthEnugu("Eth Enugu NFT", "EENUGU");
+        console.log("Eth Enugu contract deployed at:", address(ethEnugu));
+        console.log("Deployer address:", deployer);
         vm.stopBroadcast();
     }
 }
