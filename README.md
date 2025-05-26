@@ -23,7 +23,7 @@ Each pass is unique, verifiable on-chain, and transferable. Organizers (the cont
 ## 🔑 Key Features
 
 * **Role-Based Access Control**
-  Separate whitelists for Residency, In-Venue, and Summit minters. Only authorized addresses can mint the corresponding pass.
+  Whitelists for Residency. Only authorized addresses can mint the pass.
 
 * **One-Pass-Per-Wallet Enforcement**
   Internal mappings track per-address mints to prevent duplicates within each tier.

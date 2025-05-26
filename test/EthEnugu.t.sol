@@ -21,24 +21,22 @@ contract EthEnuguTest is Test {
     address public minter = address(0xBEEF);
     /// @notice Generic user address for negative tests
     address public user = address(0xCAFE);
+    /// @notice Test email for whitelisting
+    string public testEmail = "test@example.com";
 
-    /// @notice Deploys EthEnugu as owner and assigns all roles to `minter`
+    /// @notice Deploys EthEnugu as owner and assigns email whitelist role to `minter`
     function setUp() public {
         // Simulate calls from owner
         vm.prank(owner);
         ethEnugu = new EthEnugu("EthEnuguNFT", "EEN");
 
-        // Grant each minter role to `minter`
+        // Grant Residency minting role to `minter`'s email
         vm.prank(owner);
-        ethEnugu.updateAllowedResidencyMinter(minter, true);
-        vm.prank(owner);
-        ethEnugu.updateAllowedInVenueMinter(minter, true);
-        vm.prank(owner);
-        ethEnugu.updateAllowedConferenceMinter(minter, true);
+        ethEnugu.updateAllowedResidencyEmail(testEmail, true);
     }
 
     /// @notice Verifies default base URIs match constructor values
-    function testInitialBaseTokenURIs() public {
+    function testInitialBaseTokenURIs() public view {
         assertEq(ethEnugu.residencyBaseTokenURI(), "https://residency.example/api/");
         assertEq(ethEnugu.inVenueBaseTokenURI(), "https://invenue.example/api/");
         assertEq(ethEnugu.conferenceBaseTokenURI(), "https://conference.example/api/");
@@ -47,7 +45,7 @@ contract EthEnuguTest is Test {
     /// @notice Ensures tokenURI returns correct Residency metadata path
     function testTokenURIResidency() public {
         vm.prank(minter);
-        ethEnugu.mintBuilderResidency();
+        ethEnugu.mintBuilderResidency(testEmail);
         string memory expected = string(abi.encodePacked(
             ethEnugu.residencyBaseTokenURI(), "1.json"
         ));
@@ -74,43 +72,31 @@ contract EthEnuguTest is Test {
         assertEq(ethEnugu.tokenURI(1), expected);
     }
 
-    /// @notice Owner default roles: Residency mint
-    function testOwnerIsAllowedByDefaultResidency() public {
+    /// @notice Owner default roles: Residency mint with whitelisted email
+    function testOwnerCanMintResidencyWithEmail() public {
         vm.prank(owner);
-        ethEnugu.mintBuilderResidency();
+        ethEnugu.updateAllowedResidencyEmail(testEmail, true);
+        vm.prank(owner);
+        ethEnugu.mintBuilderResidency(testEmail);
         assertEq(ethEnugu.ownerOf(1), owner);
     }
 
-    /// @notice Owner default roles: InVenue mint
-    function testOwnerIsAllowedByDefaultInVenue() public {
-        vm.prank(owner);
-        ethEnugu.mintInVenueRegistration();
-        assertEq(ethEnugu.ownerOf(1), owner);
-    }
-
-    /// @notice Owner default roles: Conference mint
-    function testOwnerIsAllowedByDefaultConference() public {
-        vm.prank(owner);
-        ethEnugu.mintConferenceAttendance();
-        assertEq(ethEnugu.ownerOf(1), owner);
-    }
-
-    /// @notice Authorized minter: Residency
-    function testAuthorizedMinterCanMintResidency() public {
+    /// @notice Authorized email: Residency
+    function testAuthorizedEmailCanMintResidency() public {
         vm.prank(minter);
-        ethEnugu.mintBuilderResidency();
+        ethEnugu.mintBuilderResidency(testEmail);
         assertEq(ethEnugu.ownerOf(1), minter);
     }
 
-    /// @notice Authorized minter: InVenue
-    function testAuthorizedMinterCanMintInVenue() public {
+    /// @notice Minter: InVenue
+    function testMinterCanMintInVenue() public {
         vm.prank(minter);
         ethEnugu.mintInVenueRegistration();
         assertEq(ethEnugu.ownerOf(1), minter);
     }
 
-    /// @notice Authorized minter: Conference
-    function testAuthorizedMinterCanMintConference() public {
+    /// @notice Minter: Conference
+    function testMinterCanMintConference() public {
         vm.prank(minter);
         ethEnugu.mintConferenceAttendance();
         assertEq(ethEnugu.ownerOf(1), minter);
@@ -119,10 +105,10 @@ contract EthEnuguTest is Test {
     /// @notice Prevent double-residency mint per address
     function testMintingResidencyTwiceReverts() public {
         vm.prank(minter);
-        ethEnugu.mintBuilderResidency();
+        ethEnugu.mintBuilderResidency(testEmail);
         vm.prank(minter);
         vm.expectRevert("Residency: already minted");
-        ethEnugu.mintBuilderResidency();
+        ethEnugu.mintBuilderResidency(testEmail);
     }
 
     /// @notice Prevent double-inVenue mint per address
@@ -143,96 +129,41 @@ contract EthEnuguTest is Test {
         ethEnugu.mintConferenceAttendance();
     }
 
-    /// @notice Unauthorized minter should revert for Residency
-    function testUnauthorizedMinterRevertsResidency() public {
-        address badActor = address(0xDEAD);
-        vm.prank(badActor);
-        vm.expectRevert("Not allowed");
-        ethEnugu.mintBuilderResidency();
+    /// @notice Unauthorized email should revert for Residency
+    function testUnauthorizedEmailRevertsResidency() public {
+        string memory badEmail = "unauthorized@example.com";
+        vm.prank(user);
+        vm.expectRevert("EthEnugu: email not allowed");
+        ethEnugu.mintBuilderResidency(badEmail);
     }
 
-    /// @notice Unauthorized minter should revert for InVenue
-    function testUnauthorizedMinterRevertsInVenue() public {
-        address badActor = address(0xDEAD);
-        vm.prank(badActor);
-        vm.expectRevert("Not allowed");
-        ethEnugu.mintInVenueRegistration();
+    /// @notice Owner role management: add/remove Residency email
+    function testUpdateAllowedEmailAddsAndRemovesResidency() public {
+        string memory newEmail = "new@example.com";
+        bytes32 emailHash = keccak256(abi.encodePacked(newEmail));
+        vm.prank(owner);
+        ethEnugu.updateAllowedResidencyEmail(newEmail, true);
+        assertTrue(ethEnugu.allowedResidencyEmails(emailHash));
+        vm.prank(owner);
+        ethEnugu.updateAllowedResidencyEmail(newEmail, false);
+        assertFalse(ethEnugu.allowedResidencyEmails(emailHash));
     }
 
-    /// @notice Unauthorized minter should revert for Conference
-    function testUnauthorizedMinterRevertsConference() public {
-        주소 badActor = address(0xDEAD);
-        vm.prank(badActor);
-        vm.expectRevert("Not allowed");
-        ethEnugu.mintConferenceAttendance();
-    }
-
-    /// @notice Owner role management: add/remove Residency minter
-    function testUpdateAllowedMinterAddsAndRemovesResidency() public {
-        vm.prank(owner);
-        ethEnugu.updateAllowedResidencyMinter(address(0x1234), true);
-        assertTrue(ethEnugu.allowedResidencyMinters(address(0x1234)));
-        vm.prank(owner);
-        ethEnugu.updateAllowedResidencyMinter(address(0x1234), false);
-        assertFalse(ethEnugu.allowedResidencyMinters(address(0x1234)));
-    }
-
-    /// @notice Owner role management: add/remove InVenue minter
-    function testUpdateAllowedMinterAddsAndRemovesInVenue() public {
-        vm.prank(owner);
-        ethEnugu.updateAllowedInVenueMinter(address(0x1234), true);
-        assertTrue(ethEnugu.allowedInVenueMinters(address(0x1234)));
-        vm.prank(owner);
-        ethEnugu.updateAllowedInVenueMinter(address(0x1234), false);
-        assertFalse(ethEnugu.allowedInVenueMinters(address(0x1234)));
-    }
-
-    /// @notice Owner role management: add/remove Conference minter
-    function testUpdateAllowedMinterAddsAndRemovesConference() public {
-        vm.prank(owner);
-        ethEnugu.updateAllowedConferenceMinter(address(0x1234), true);
-        assertTrue(ethEnugu.allowedConferenceMinters(address(0x1234)));
-        vm.prank(owner);
-        ethEnugu.updateAllowedConferenceMinter(address(0x1234), false);
-        assertFalse(ethEnugu.allowedConferenceMinters(address(0x1234)));
-    }
-
-    /// @notice Only owner can manage Residency minters
-    function testNonOwnerCannotAddAndRemoveResidencyMinter() public {
+    /// @notice Only owner can manage Residency emails
+    function testNonOwnerCannotAddAndRemoveResidencyEmail() public {
+        string memory newEmail = "new@example.com";
         address nonOwner = address(0x7777);
         vm.prank(nonOwner);
         vm.expectRevert("Ownable: caller is not the owner");
-        ethEnugu.updateAllowedResidencyMinter(address(0x1234), true);
+        ethEnugu.updateAllowedResidencyEmail(newEmail, true);
         vm.prank(nonOwner);
         vm.expectRevert("Ownable: caller is not the owner");
-        ethEnugu.updateAllowedResidencyMinter(address(0x1234), false);
-    }
-
-    /// @notice Only owner can manage InVenue minters
-    function testNonOwnerCannotAddAndRemoveInVenueMinter() public {
-        address nonOwner = address(0x7777);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        ethEnugu.updateAllowedInVenueMinter(address(0x1234), true);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        ethEnugu.updateAllowedInVenueMinter(address(0x1234), false);
-    }
-
-    /// @notice Only owner can manage Conference minters
-    function testNonOwnerCannotAddAndRemoveConferenceMinter() public {
-        address nonOwner = address(0x7777);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        ethEnugu.updateAllowedConferenceMinter(address(0x1234), true);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        ethEnugu.updateAllowedConferenceMinter(address(0x1234), false);
+        ethEnugu.updateAllowedResidencyEmail(newEmail, false);
     }
 
     /// @notice Querying tokenURI on nonexistent token should revert
     function testNonExistentTokenURI() public {
-        vm.expectRevert("ERC721Metadata: URI query for nonexistent token");
+        vm.expectRevert("ERC721: URI query for nonexistent token");
         ethEnugu.tokenURI(999);
     }
 
@@ -240,25 +171,23 @@ contract EthEnuguTest is Test {
     function testReentrantResidencyReverts() public {
         MaliciousReceiver evil = new MaliciousReceiver(
             address(ethEnugu),
-            minter,
+            testEmail,
             MaliciousReceiver.Mode.Residency
         );
         vm.prank(owner);
-        ethEnugu.updateAllowedResidencyMinter(address(evil), true);
+        ethEnugu.updateAllowedResidencyEmail(testEmail, true);
         vm.prank(address(evil));
         vm.expectRevert("ReentrancyGuard: reentrant call");
-        ethEnugu.mintBuilderResidency();
+        ethEnugu.mintBuilderResidency(testEmail);
     }
 
     /// @notice Reentrancy guard: InVenue mint should block reentrant calls
     function testReentrantInVenueReverts() public {
         MaliciousReceiver evil = new MaliciousReceiver(
             address(ethEnugu),
-            minter,
+            testEmail,
             MaliciousReceiver.Mode.InVenue
         );
-        vm.prank(owner);
-        ethEnugu.updateAllowedInVenueMinter(address(evil), true);
         vm.prank(address(evil));
         vm.expectRevert("ReentrancyGuard: reentrant call");
         ethEnugu.mintInVenueRegistration();
@@ -268,11 +197,9 @@ contract EthEnuguTest is Test {
     function testReentrantConferenceReverts() public {
         MaliciousReceiver evil = new MaliciousReceiver(
             address(ethEnugu),
-            minter,
+            testEmail,
             MaliciousReceiver.Mode.Conference
         );
-        vm.prank(owner);
-        ethEnugu.updateAllowedConferenceMinter(address(evil), true);
         vm.prank(address(evil));
         vm.expectRevert("ReentrancyGuard: reentrant call");
         ethEnugu.mintConferenceAttendance();
@@ -289,14 +216,17 @@ contract MaliciousReceiver is IERC721Receiver {
     /// @notice Mode to determine which mint function to call
     enum Mode { Residency, InVenue, Conference }
     Mode public mode;
+    /// @notice Email to use for Residency mint attempts
+    string public email;
 
     /**
      * @param _target Address of the EthEnugu contract
-     * @param _minter Unused in this receiver but kept for signature consistency
+     * @param _email Email for Residency mint attempts
      * @param _mode Mode of reentrancy attack
      */
-    constructor(address _target, address, Mode _mode) {
+    constructor(address _target, string memory _email, Mode _mode) {
         target = EthEnugu(_target);
+        email = _email;
         mode = _mode;
     }
 
@@ -311,7 +241,7 @@ contract MaliciousReceiver is IERC721Receiver {
         bytes calldata
     ) external override returns (bytes4) {
         if (mode == Mode.Residency) {
-            target.mintBuilderResidency();
+            target.mintBuilderResidency(email);
         } else if (mode == Mode.InVenue) {
             target.mintInVenueRegistration();
         } else {

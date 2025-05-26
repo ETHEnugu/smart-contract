@@ -18,14 +18,8 @@ contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
     /// @notice NFT categories corresponding to pass types
     enum Category { Residency, InVenue, Conference }
 
-    /// @notice Mapping of addresses allowed to mint Residency passes
-    mapping(address => bool) public allowedResidencyMinters;
-
-    /// @notice Mapping of addresses allowed to mint InVenue passes
-    mapping(address => bool) public allowedInVenueMinters;
-
-    /// @notice Mapping of addresses allowed to mint Conference passes
-    mapping(address => bool) public allowedConferenceMinters;
+    /// @notice Mapping of email hashes to allowed Residency minters
+    mapping(bytes32 => bool) public allowedResidencyEmails;
 
     /// @notice Tracks if an address has already minted a Residency pass
     mapping(address => bool) public hasMintedResidency;
@@ -57,18 +51,13 @@ contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
     /// @notice Maps token IDs to their Category
     mapping(uint256 => Category) private _tokenCategory;
 
-    /// @notice Emitted when an allowed minter is added or removed
-    /// @param minter Address of the minter
+    /// @notice Emitted when an allowed email is added or removed
+    /// @param emailHash Hash of the email
     /// @param allowed True if allowed, false if revoked
-    event AllowedMinterUpdated(address indexed minter, bool allowed);
-
-    /// @notice Emitted when a category base URI is updated
-    /// @param category The Category updated
-    /// @param newBaseURI New base URI string
-    event BaseTokenURIUpdated(Category category, string newBaseURI);
+    event AllowedEmailUpdated(bytes32 emailHash, bool allowed);
 
     /// @notice Emitted when a Residency pass is minted
-    event ResidencyMinted(address indexed to, uint256 indexed tokenId);
+    event ResidencyMinted(address indexed to, uint256 indexed tokenId, string email);
 
     /// @notice Emitted when an InVenue pass is minted
     event InVenueMinted(address indexed to, uint256 indexed tokenId);
@@ -76,62 +65,32 @@ contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
     /// @notice Emitted when a Conference pass is minted
     event ConferenceMinted(address indexed to, uint256 indexed tokenId);
 
-    /// @notice Restricts function to allowed Residency minters
-    modifier onlyAllowedResidency() {
-        require(allowedResidencyMinters[msg.sender], "EthEnugu: caller not allowed");
-        _;
-    }
-
-    /// @notice Restricts function to allowed InVenue minters
-    modifier onlyAllowedInVenue() {
-        require(allowedInVenueMinters[msg.sender], "EthEnugu: caller not allowed");
-        _;
-    }
-
-    /// @notice Restricts function to allowed Conference minters
-    modifier onlyAllowedConference() {
-        require(allowedConferenceMinters[msg.sender], "EthEnugu: caller not allowed");
-        _;
-    }
-
-    /// @notice Constructor sets token name, symbol, default URIs, and grants owner all mint roles
+    /// @notice Constructor sets token name, symbol, default URIs
     /// @param name_ ERC721 token name
     /// @param symbol_ ERC721 token symbol
     constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
         residencyBaseTokenURI  = "https://residency.example/api/";
         inVenueBaseTokenURI    = "https://invenue.example/api/";
         conferenceBaseTokenURI = "https://conference.example/api/";
-
-        // Owner begins with all roles
-        allowedResidencyMinters[_msgSender()]   = true;
-        allowedInVenueMinters[_msgSender()]     = true;
-        allowedConferenceMinters[_msgSender()]  = true;
     }
 
-    /// @notice Grant or revoke Residency minter role
-    /// @param minter Address to update
-    /// @param ok True to grant, false to revoke
-    function updateAllowedResidencyMinter(address minter, bool ok) external onlyOwner {
-        allowedResidencyMinters[minter] = ok;
-        emit AllowedMinterUpdated(minter, ok);
+    /// @notice Grant or revoke Residency minter role for an email
+    /// @param email Email address to update
+    /// @param allowed True to grant, false to revoke
+    function updateAllowedResidencyEmail(string memory email, bool allowed) external onlyOwner {
+        bytes32 emailHash = keccak256(abi.encodePacked(email));
+        allowedResidencyEmails[emailHash] = allowed;
+        emit AllowedEmailUpdated(emailHash, allowed);
     }
 
-    /// @notice Grant or revoke InVenue minter role
-    function updateAllowedInVenueMinter(address minter, bool ok) external onlyOwner {
-        allowedInVenueMinters[minter] = ok;
-        emit AllowedMinterUpdated(minter, ok);
-    }
-
-    /// @notice Grant or revoke Conference minter role
-    function updateAllowedConferenceMinter(address minter, bool ok) external onlyOwner {
-        allowedConferenceMinters[minter] = ok;
-        emit AllowedMinterUpdated(minter, ok);
-    }
-
-    /// @notice Mints a Residency pass to caller
+    /// @notice Mints a Residency pass to caller after email verification
+    /// @param email Email address to verify against whitelist
     /// @dev Prevents double-mint and protected against reentrancy
-    function mintBuilderResidency() external onlyAllowedResidency nonReentrant {
+    function mintBuilderResidency(string memory email) external nonReentrant {
+        bytes32 emailHash = keccak256(abi.encodePacked(email));
+        require(allowedResidencyEmails[emailHash], "EthEnugu: email not allowed");
         require(!hasMintedResidency[msg.sender], "Residency: already minted");
+        
         hasMintedResidency[msg.sender] = true;
 
         _residencyCounter.increment();
@@ -139,11 +98,11 @@ contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
         _tokenCategory[tokenId] = Category.Residency;
         _safeMint(msg.sender, tokenId);
 
-        emit ResidencyMinted(msg.sender, tokenId);
+        emit ResidencyMinted(msg.sender, tokenId, email);
     }
 
     /// @notice Mints an InVenue pass to caller
-    function mintInVenueRegistration() external onlyAllowedInVenue nonReentrant {
+    function mintInVenueRegistration() external nonReentrant {
         require(!hasMintedInVenue[msg.sender], "InVenue: already minted");
         hasMintedInVenue[msg.sender] = true;
 
@@ -156,7 +115,7 @@ contract EthEnugu is ERC721, Ownable, ReentrancyGuard {
     }
 
     /// @notice Mints a Conference pass to caller
-    function mintConferenceAttendance() external onlyAllowedConference nonReentrant {
+    function mintConferenceAttendance() external nonReentrant {
         require(!hasMintedConference[msg.sender], "Conference: already minted");
         hasMintedConference[msg.sender] = true;
 
