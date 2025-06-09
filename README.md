@@ -12,136 +12,171 @@
 
 The **ETH Enugu** suite implements ERC-721 “event pass” NFTs for three participation tiers:
 
-1. **Residency Pass** (Builder Residency)
-2. **In-Venue Pass** (Pop-Up City + Registration)
-3. **Summit Pass** (Conference Attendance)
+1. **Residency Pass** (Builder Residency, managed by `EthEnuguResidency.sol`)
+2. **In-Venue Pass** (Pop-Up City + Registration, managed by `EthEnugu.sol`)
+3. **Summit Pass** (Conference Attendance, managed by `EthEnugu.sol`)
 
-Each pass is unique, verifiable on-chain, and transferable. Organizers (the contract owner) grant specific minter roles per pass type, and each wallet may mint **only one** pass in each category.
+Each pass is unique, verifiable on-chain, and transferable. Organizers (the contract owner) manage whitelists for Residency passes, and each wallet may mint **only one** pass in each category.
 
 ---
 
 ## 🔑 Key Features
 
-* **Role-Based Access Control**
-  Whitelists for Residency. Only authorized addresses can mint the pass.
+- **Role-Based Access Control**
+  - Address-based whitelisting for Residency passes. Only whitelisted addresses can mint Residency passes.
+  - Open minting for In-Venue and Summit passes, limited to one per address.
 
-* **One-Pass-Per-Wallet Enforcement**
-  Internal mappings track per-address mints to prevent duplicates within each tier.
+- **One-Pass-Per-Wallet Enforcement**
+  - Internal mappings (`hasMintedResidency`, `hasMintedInVenue`, `hasMintedConference`) prevent duplicate mints within each tier.
 
-* **Reentrancy Protection**
-  All minting functions use OpenZeppelin’s `ReentrancyGuard` to block nested calls and guard against reentrancy exploits.
+- **Custom Errors**
+  - Gas-efficient custom errors (e.g., `AddressNotAllowed`, `AlreadyMinted`, `NonexistentToken`) for clear and efficient error handling.
 
-* **Category-Specific Metadata URIs**
-  Distinct base URIs for each pass type. On-chain logic concatenates `baseURI + tokenId + ".json"` to serve the correct metadata.
+- **Category-Specific Metadata URIs**
+  - Distinct base URIs for each pass type. On-chain logic concatenates `baseURI + tokenId + ".json"` to serve the correct metadata.
 
 ---
 
 ## ⚙️ Installation
 
-1. **Install Foundry**
+### 1. Install Foundry
 
-   ```bash
-   curl -L https://foundry.paradigm.xyz | bash
-   foundryup
-   ```
-2. **Clone & Build**
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
 
-   ```bash
-   git clone https://github.com/ETHEnugu/smart-contract
-   cd smart-contract
-   forge install
-   forge build
-   ```
+### 2. Clone & Build
 
----
+```bash
+git clone https://github.com/ETHEnugu/smart-contract
+cd smart-contract
+forge install
+forge build
+```
 
-## ✅ Testing & Coverage
+### 3. Testing & Coverage
 
-* **Run all tests**
+**Run all tests**
+```bash
+forge test
+```
 
-  ```bash
-  forge test
-  ```
-* **Generate coverage report**
-
-  ```bash
-  forge coverage
-  forge coverage --report lcov
-  # then use genhtml lcov.info -o coverage-report
-  ```
+**Generate coverage report**
+```bash
+forge coverage
+forge coverage --report lcov
+# then use genhtml lcov.info -o coverage-report
+```
 
 ---
 
-## 📄 Contract Breakdown
+## 📦 Contract Breakdown
+
+### `src/EthEnuguResidency.sol`
+**Purpose:** Manages Residency passes for the Builder Residency.
+
+- **ERC-721 Implementation** with one mint function:
+  - `mintBuilderResidency()`: Mints a Residency pass for whitelisted addresses.
+
+- **Access Control:**
+  - Owner-managed whitelist via `allowedResidencyAddresses` mapping.
+  - `updateAllowedResidencyAddress(address, bool)` to add/remove whitelisted addresses.
+
+- **Single-Mint Guard:** `hasMintedResidency` mapping ensures one Residency pass per address.
+
+- **Metadata Logic:** `tokenURI()` returns `residencyBaseTokenURI + tokenId + ".json"`.
+
+- **Custom Errors:**
+  - `InvalidAddress`
+  - `AddressNotAllowed`
+  - `AlreadyMinted`
+  - `NonexistentToken`
+
+---
 
 ### `src/EthEnugu.sol`
+**Purpose:** Manages In-Venue and Summit passes for Pop-Up City and Conference Attendance.
 
-* **ERC-721 Implementation** with three mint functions:
+- **ERC-721 Implementation** with two mint functions:
+  - `mintInVenueRegistration()`: Mints an In-Venue pass.
+  - `mintConferenceAttendance()`: Mints a Summit pass.
 
-  * `mintBuilderResidency()`
-  * `mintInVenueRegistration()`
-  * `mintConferenceAttendance()`
-* **Access Control** via owner-managed mappings:
+- **Access Control:** Open minting, restricted to one pass per type per address.
 
-  * `allowedResidencyMinters`
-  * `allowedInVenueMinters`
-  * `allowedConferenceMinters`
-* **Single-Mint Guards** using `hasMinted…` mappings.
-* **Metadata Logic** in `tokenURI()` that routes to the correct base URI.
+- **Single-Mint Guards:**
+  - `hasMintedInVenue` for In-Venue passes.
+  - `hasMintedConference` for Summit passes.
 
-### `test/EthEnugu.t.sol`
+- **Metadata Logic:** `tokenURI()` routes to `inVenueBaseTokenURI` or `conferenceBaseTokenURI` based on pass type.
 
-* **Unit Tests** covering:
-
-  * Default owner privileges
-  * Authorized vs. unauthorized minters
-  * One-mint enforcement
-  * URI correctness
-  * Role updates (add/remove)
-  * Reentrancy attacks via a malicious IERC721Receiver
+- **Custom Errors:**
+  - `AlreadyMintedInVenue`
+  - `AlreadyMintedConference`
+  - `NonexistentToken`
 
 ---
 
-## 📦 Usage Examples
+### `test/EthEnugu.t.sol`
+**Unit Tests covering:**
+- Default base URI correctness for all pass types.
+- Metadata URI generation for Residency, In-Venue, and Summit passes.
+- Whitelisted and non-whitelisted minting for Residency.
+- Open minting for In-Venue and Summit passes.
+- Single-mint enforcement per address for each pass type.
+- Owner-only whitelist management for Residency.
+- Custom error handling for invalid addresses, unauthorized mints, and nonexistent tokens.
+- Zero-address whitelist prevention.
 
-### Granting Minter Roles
+---
 
+## 💡 Usage Examples
+
+### Granting Whitelist Access (Residency)
 ```solidity
 // As contract owner:
-ethEnugu.updateAllowedResidencyMinter(minterAddress, true);
-ethEnugu.updateAllowedInVenueMinter(minterAddress, true);
-ethEnugu.updateAllowedConferenceMinter(minterAddress, true);
+ethEnuguResidency.updateAllowedResidencyAddress(minterAddress, true);
 ```
 
 ### Minting a Pass
-
 ```solidity
-// Called by an address with the matching minter role:
-ethEnugu.mintBuilderResidency();
+// Residency (whitelisted address):
+ethEnuguResidency.mintBuilderResidency();
+
+// In-Venue (any address, once):
 ethEnugu.mintInVenueRegistration();
+
+// Summit (any address, once):
 ethEnugu.mintConferenceAttendance();
 ```
 
 ### Fetching Metadata URI
+```javascript
+// Residency pass
+const residencyUri = await ethEnuguResidency.tokenURI(tokenId);
+// e.g., https://residency.example/api/1.json
 
-```js
-const uri = await ethEnugu.tokenURI(tokenId);
-// e.g. https://residency.example/api/1.json
+// In-Venue or Summit pass
+const passUri = await ethEnugu.tokenURI(tokenId);
+// e.g., https://invenue.example/api/1.json or https://conference.example/api/1.json
 ```
 
 ---
 
 ## 🔒 Security
 
-* **ReentrancyGuard** on all mint functions.
-* **Safe ERC-721** via `_safeMint`, enforcing receiver interface checks.
-* **Strict Role Checks** with clear error messages (`"Not allowed"`).
+- **Safe ERC-721:** Uses `_safeMint` to enforce receiver interface checks.
+- **Single-Mint Enforcement:** Prevents duplicate mints without relying on external state.
+- **Custom Errors:** Reduces gas costs and improves error clarity.
+- **Owner-Only Whitelist:** Only the contract owner can manage the Residency whitelist.
+
+> **Note:** Reentrancy protection is not included, as minting functions are simple and do not interact with external contracts beyond `_safeMint`.
 
 ---
 
-## 📜 License
+## 🪪 License
 
-Released under the [MIT License](LICENSE).
+Released under the MIT License ([LICENSE](LICENSE)).
 
 ---
 
@@ -153,6 +188,6 @@ Pull requests and issues are welcome! Please open an issue to discuss major chan
 
 ## 🙏 Acknowledgments
 
-* **ETH Enugu Community** for event vision and support.
-* **Nigeria Web3 Ecosystem** for ongoing collaboration.
-* **OpenZeppelin & Foundry** teams for their open-source tooling.
+- ETH Enugu Community for event vision and support.
+- Nigeria Web3 Ecosystem for ongoing collaboration.
+- OpenZeppelin & Foundry teams for their open-source tooling.
