@@ -41,7 +41,7 @@ contract EthEnuguResidency is ERC721, Ownable {
 
     /// @notice Constructor sets token name, symbol, and default URI
     constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
-        residencyBaseTokenURI = "https://residency.example/api/";
+        residencyBaseTokenURI = "https://aquamarine-rare-firefly-756.mypinata.cloud/ipfs/bafkreigzu2rrdmh7jj3cz57dn2wh7psuwbdxgiflsphxpcppgfbkeycmsm";
     }
 
     /// @notice Grant or revoke Residency minter role for an address
