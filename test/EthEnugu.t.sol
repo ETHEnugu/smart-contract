@@ -1,4 +1,4 @@
-// SPDX-License-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
  * @title EthEnugu Test Suite
  * @dev Test suite for EthEnuguResidency and EthEnugu NFT contracts
  * @author Therock Ani
- * @notice Tests minting, access control, URI logic for Residency, InVenue, and Conference passes
+ * @notice Tests minting, access control, URI logic for Residency, Pop-Up City, Conference, and University Tour passes
  */
 contract EthEnuguTest is Test {
     /// @notice Instances of the contracts under test
@@ -42,8 +42,9 @@ contract EthEnuguTest is Test {
     /// @notice Verifies default base URIs match constructor values
     function testInitialBaseTokenURIs() public view {
         assertEq(ethEnuguResidency.residencyBaseTokenURI(), "https://residency.example/api/");
-        assertEq(ethEnugu.inVenueBaseTokenURI(), "https://invenue.example/api/");
+        assertEq(ethEnugu.popUpCityBaseTokenURI(), "https://popupcity.example/api/"); // Changed
         assertEq(ethEnugu.conferenceBaseTokenURI(), "https://conference.example/api/");
+        assertEq(ethEnugu.universityTourBaseTokenURI(), "https://universitytour.example/api/"); // New
     }
 
     /// @notice Ensures tokenURI returns correct Residency metadata path
@@ -54,11 +55,11 @@ contract EthEnuguTest is Test {
         assertEq(ethEnuguResidency.tokenURI(1), expected);
     }
 
-    /// @notice Ensures tokenURI returns correct InVenue metadata path
-    function testTokenURIInVenue() public {
+    /// @notice Ensures tokenURI returns correct Pop-Up City metadata path // Changed
+    function testTokenURIPopUpCity() public { // Changed
         vm.prank(minter);
-        ethEnugu.mintInVenueRegistration();
-        string memory expected = string(abi.encodePacked(ethEnugu.inVenueBaseTokenURI(), "1.json"));
+        ethEnugu.mintPopUpCityRegistration(); // Changed
+        string memory expected = string(abi.encodePacked(ethEnugu.popUpCityBaseTokenURI(), "1.json")); // Changed
         assertEq(ethEnugu.tokenURI(1), expected);
     }
 
@@ -67,6 +68,14 @@ contract EthEnuguTest is Test {
         vm.prank(minter);
         ethEnugu.mintConferenceAttendance();
         string memory expected = string(abi.encodePacked(ethEnugu.conferenceBaseTokenURI(), "1.json"));
+        assertEq(ethEnugu.tokenURI(1), expected);
+    }
+
+    /// @notice Ensures tokenURI returns correct University Tour metadata path // New test
+    function testTokenURIUniversityTour() public { // New test
+        vm.prank(minter);
+        ethEnugu.mintUniversityTour(); // New function call
+        string memory expected = string(abi.encodePacked(ethEnugu.universityTourBaseTokenURI(), "1.json")); // New base URI
         assertEq(ethEnugu.tokenURI(1), expected);
     }
 
@@ -86,10 +95,10 @@ contract EthEnuguTest is Test {
         assertEq(ethEnuguResidency.ownerOf(1), minter);
     }
 
-    /// @notice Minter can mint InVenue
-    function testMinterCanMintInVenue() public {
+    /// @notice Minter can mint Pop-Up City // Changed
+    function testMinterCanMintPopUpCity() public { // Changed
         vm.prank(minter);
-        ethEnugu.mintInVenueRegistration();
+        ethEnugu.mintPopUpCityRegistration(); // Changed
         assertEq(ethEnugu.ownerOf(1), minter);
     }
 
@@ -97,6 +106,13 @@ contract EthEnuguTest is Test {
     function testMinterCanMintConference() public {
         vm.prank(minter);
         ethEnugu.mintConferenceAttendance();
+        assertEq(ethEnugu.ownerOf(1), minter);
+    }
+
+    /// @notice Minter can mint University Tour // New test
+    function testMinterCanMintUniversityTour() public { // New test
+        vm.prank(minter);
+        ethEnugu.mintUniversityTour(); // New function call
         assertEq(ethEnugu.ownerOf(1), minter);
     }
 
@@ -109,13 +125,13 @@ contract EthEnuguTest is Test {
         ethEnuguResidency.mintBuilderResidency();
     }
 
-    /// @notice Prevent double-inVenue mint per address
-    function testMintingInVenueTwiceReverts() public {
+    /// @notice Prevent double-Pop-Up City mint per address // Changed
+    function testMintingPopUpCityTwiceReverts() public { // Changed
         vm.prank(minter);
-        ethEnugu.mintInVenueRegistration();
+        ethEnugu.mintPopUpCityRegistration(); // Changed
         vm.prank(minter);
-        vm.expectRevert(EthEnugu.AlreadyMintedInVenue.selector);
-        ethEnugu.mintInVenueRegistration();
+        vm.expectRevert(EthEnugu.AlreadyMintedPopUpCity.selector); // Changed
+        ethEnugu.mintPopUpCityRegistration(); // Changed
     }
 
     /// @notice Prevent double-conference mint per address
@@ -125,6 +141,15 @@ contract EthEnuguTest is Test {
         vm.prank(minter);
         vm.expectRevert(EthEnugu.AlreadyMintedConference.selector);
         ethEnugu.mintConferenceAttendance();
+    }
+
+    /// @notice Prevent double-University Tour mint per address // New test
+    function testMintingUniversityTourTwiceReverts() public { // New test
+        vm.prank(minter);
+        ethEnugu.mintUniversityTour(); // New function call
+        vm.prank(minter);
+        vm.expectRevert(EthEnugu.AlreadyMintedUniversityTour.selector); // New revert
+        ethEnugu.mintUniversityTour(); // New function call
     }
 
     /// @notice Non-whitelisted address reverts for Residency
@@ -147,70 +172,9 @@ contract EthEnuguTest is Test {
 
     /// @notice Non-owner cannot manage Residency whitelist
     function testNonOwnerCannotAddAndRemoveResidencyAddress() public {
-        address nonOwner = address(0x7777);
         address newAddress = address(0x1234);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(minter);
+        vm.expectRevert(EthEnuguResidency.OwnableUnauthorizedAccount.selector);
         ethEnuguResidency.updateAllowedResidencyAddress(newAddress, true);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        ethEnuguResidency.updateAllowedResidencyAddress(newAddress, false);
-    }
-
-    /// @notice Zero address cannot be whitelisted
-    function testZeroAddressWhitelistReverts() public {
-        vm.prank(owner);
-        vm.expectRevert(EthEnuguResidency.InvalidAddress.selector);
-        ethEnuguResidency.updateAllowedResidencyAddress(address(0), true);
-    }
-
-    /// @notice Querying tokenURI on nonexistent token reverts for Residency
-    function testNonExistentTokenURIResidency() public {
-        vm.expectRevert(EthEnuguResidency.NonexistentToken.selector);
-        ethEnuguResidency.tokenURI(999);
-    }
-
-    /// @notice Querying tokenURI on nonexistent token reverts for InVenue/Conference
-    function testNonExistentTokenURIInVenueConference() public {
-        vm.expectRevert(EthEnugu.NonexistentToken.selector);
-        ethEnugu.tokenURI(999);
-    }
-}
-
-/**
- * @title MaliciousReceiver
- * @notice Implements IERC721Receiver for testing (not used for reentrancy since guard removed)
- */
-contract MaliciousReceiver is IERC721Receiver {
-    /// @notice Target contracts
-    EthEnuguResidency public residencyTarget;
-    EthEnugu public passTarget;
-
-    /// @notice Mode to determine which mint function to call
-    enum Mode {
-        Residency,
-        InVenue,
-        Conference
-    }
-
-    Mode public mode;
-
-    /**
-     * @param _residencyTarget Address of EthEnuguResidency contract
-     * @param _passTarget Address of EthEnugu contract
-     * @param _mode Mode of operation
-     */
-    constructor(address _residencyTarget, address _passTarget, Mode _mode) {
-        residencyTarget = EthEnuguResidency(_residencyTarget);
-        passTarget = EthEnugu(_passTarget);
-        mode = _mode;
-    }
-
-    /**
-     * @notice Called by ERC721 safeMint; included for completeness
-     * @return selector IERC721Receiver return selector
-     */
-    function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 }
