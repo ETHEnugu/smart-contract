@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 /// @title ETH Enugu Residency Pass
 /// @author Therock Ani
 /// @notice ERC721-based NFT contract for managing Residency passes for ETH Enugu 2025
-contract EthEnuguResidency is ERC721, Ownable {
+contract EthEnuguResidency is ERC721, Ownable(msg.sender) {
     using Counters for Counters.Counter;
     using Strings for uint256;
 
@@ -70,7 +70,7 @@ contract EthEnuguResidency is ERC721, Ownable {
     /// @param tokenId NFT identifier
     /// @return URI string pointing to JSON metadata
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        if (!_exists(tokenId)) revert NonexistentToken();
-        return string(abi.encodePacked(residencyBaseTokenURI, tokenId.toString(), ".json"));
+         _requireOwned(tokenId);
+        return residencyBaseTokenURI;
     }
 }
