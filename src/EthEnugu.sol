@@ -2,14 +2,13 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title ETH Enugu Event Passes
 /// @author Therock Ani
 /// @notice ERC721-based NFT contract for managing Pop-Up City, Conference, and University Tour passes for ETH Enugu 2025
-contract EthEnugu is ERC721, Ownable {
+contract EthEnugu is ERC721 {
     using Counters for Counters.Counter;
     using Strings for uint256;
 
@@ -115,7 +114,7 @@ contract EthEnugu is ERC721, Ownable {
     /// @param tokenId NFT identifier
     /// @return URI string pointing to JSON metadata
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        if (!_exists(tokenId)) revert NonexistentToken();
+          _requireOwned(tokenId);
         Category cat = _tokenCategory[tokenId];
         string memory base;
         if (cat == Category.PopUpCity) {
