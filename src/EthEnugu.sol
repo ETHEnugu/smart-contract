@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
@@ -43,15 +43,8 @@ contract EthEnugu is ERC721 {
     /// @notice Base URI for University Tour token metadata // New variable
     string public universityTourBaseTokenURI; // New variable
 
-    /// @notice Counter for Pop-Up City token IDs
-    Counters.Counter private _popUpCityCounter;
-
     /// @notice Counter for Conference token IDs
-    Counters.Counter private _conferenceCounter;
-
-    /// @notice Counter for University Tour token IDs // New counter
-    Counters.Counter private _universityTourCounter; // New counter
-
+    Counters.Counter private Counter;
     /// @notice Maps token IDs to their Category
     mapping(uint256 => Category) private _tokenCategory;
 
@@ -76,8 +69,8 @@ contract EthEnugu is ERC721 {
         if (hasMintedPopUpCity[msg.sender]) revert AlreadyMintedPopUpCity();
         hasMintedPopUpCity[msg.sender] = true;
 
-        _popUpCityCounter.increment();
-        uint256 tokenId = _popUpCityCounter.current();
+        Counter.increment();
+        uint256 tokenId = Counter.current();
         _tokenCategory[tokenId] = Category.PopUpCity;
         _safeMint(msg.sender, tokenId);
 
@@ -89,8 +82,8 @@ contract EthEnugu is ERC721 {
         if (hasMintedConference[msg.sender]) revert AlreadyMintedConference();
         hasMintedConference[msg.sender] = true;
 
-        _conferenceCounter.increment();
-        uint256 tokenId = _conferenceCounter.current();
+        Counter.increment();
+        uint256 tokenId = Counter.current();
         _tokenCategory[tokenId] = Category.Conference;
         _safeMint(msg.sender, tokenId);
 
@@ -102,8 +95,8 @@ contract EthEnugu is ERC721 {
         if (hasMintedUniversityTour[msg.sender]) revert AlreadyMintedUniversityTour(); // New check
         hasMintedUniversityTour[msg.sender] = true; // New mapping update
 
-        _universityTourCounter.increment(); // New counter increment
-        uint256 tokenId = _universityTourCounter.current(); // New token ID
+        Counter.increment(); // New counter increment
+        uint256 tokenId = Counter.current(); // New token ID
         _tokenCategory[tokenId] = Category.UniversityTour; // New category assignment
         _safeMint(msg.sender, tokenId);
 
@@ -126,6 +119,6 @@ contract EthEnugu is ERC721 {
         } else {
             revert NonexistentToken(); // Or handle the case if a category is not found
         }
-        return string(abi.encodePacked(base, tokenId.toString(), ".json"));
+        return base;
     }
 }
